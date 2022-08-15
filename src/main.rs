@@ -28,14 +28,14 @@ async fn main() {
         clear_background(BLACK);
 
         // For every screen-height-pixel missing in world-space:
-        for y in world.len()..screen_width() as usize {
+        for x in world.len()..screen_width() as usize {
 
             // Push the Y-axis particle vector
             let yvec: Vec<Particle> = Vec::new();
             world.push(yvec);
 
             // For every screen-width-pixel missing in world-space:
-            for _x in world[y].len()..screen_height() as usize {
+            for _y in world[x].len()..screen_height() as usize {
 
                 // Generate a non-interactive placeholder particle
                 last_id += 1;
@@ -46,7 +46,7 @@ async fn main() {
                 );
 
                 // Push the air particle
-                world[y].push(air);
+                world[x].push(air);
             }
         }
 
