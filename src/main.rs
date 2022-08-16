@@ -21,9 +21,19 @@ impl Particle {
 
 #[macroquad::main("Rusty Sandbox")]
 async fn main() {
+    // The 2D world-space particle grid
     let mut world: Vec<Vec<Particle>> = Vec::new();
+    // The last particle ID generated
     let mut last_id: i32 = 0;
+    // The size (in pixels) of our paint radius
     let mut paint_radius: i16 = 1;
+    // Flag to ensure paint 'smoothing' doesn't activate between clicks (individual paints)
+    let mut is_drawing_secondary = false;
+    // Trackers for mouse movements (used in 'smoothing' fast paints)
+    let mut last_x: i16 = 0;
+    let mut last_y: i16 = 0;
+
+    // The logic + renderer loop
     loop {
         clear_background(BLACK);
 
@@ -76,12 +86,47 @@ async fn main() {
         // Control: right click for Brick
         if is_mouse_button_down(MouseButton::Right) {
             let (mouse_x, mouse_y) = mouse_position();
-            let ptr = &mut world[mouse_x as usize][mouse_y as usize];
-            // If not occupied: assign Brick as the Variant and activate
-            if !ptr.active {
-                ptr.variant = ParticleVariant::Brick;
-                ptr.active = true;
+            let mouse_x = mouse_x as i16;
+            let mouse_y = mouse_y as i16;
+            let dist = (mouse_x + mouse_y - last_x - last_y).abs();
+            // If the distance is large (e.g: a fast mouse flick) then we need to 'best-guess' the path of the cursor mid-frame
+            // ... so that there's no gaps left between paint intersections, a nice touch for UX!
+            if dist <= 1 {
+                // Place a single particle
+                let ptr = &mut world[mouse_x as usize][mouse_y as usize];
+                // If not occupied: assign Brick as the Variant and activate
+                if !ptr.active {
+                    ptr.variant = ParticleVariant::Brick;
+                    ptr.active = true;
+                }
+            } else if is_drawing_secondary {
+                // TODO: We can do a much better algorithm than this (perhaps linear interpolation?)
+                // TODO: Diagonal movements currently do not seem to work well with this (missing path particles), investigate!
+                // While the X or Y coords of the last particle don't match the current mouse coords, pathfind our way to it!
+                while last_x != mouse_x || last_y != mouse_y {
+                    if mouse_x > last_x { last_x += 1; }
+                    if mouse_x < last_x { last_x -= 1; }
+                    if mouse_y > last_y { last_y += 1; }
+                    if mouse_y < last_y { last_y -= 1; }
+                    // Place a particle along the path
+                    let ptr = &mut world[last_x as usize][last_y as usize];
+                    if !ptr.active {
+                        ptr.variant = ParticleVariant::Brick;
+                        ptr.active = true;
+                    }
+                }
+            } else {
+                // Reset X/Y tracking when we're not smoothing
+                last_x = mouse_x;
+                last_y = mouse_y;
             }
+            // Switch the secondary draw on after one frame (to avoid the pathing system activating between 'paints')
+            is_drawing_secondary = true;
+        }
+
+        // Control release: Disable the secondary paint smoothing
+        if is_mouse_button_released(MouseButton::Right) {
+            is_drawing_secondary = false;
         }
 
         // Control: increase paint radius
