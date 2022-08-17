@@ -88,18 +88,9 @@ async fn main() {
             let (mouse_x, mouse_y) = mouse_position();
             let mouse_x = mouse_x as i16;
             let mouse_y = mouse_y as i16;
-            let dist = (mouse_x + mouse_y - last_x - last_y).abs();
             // If the distance is large (e.g: a fast mouse flick) then we need to 'best-guess' the path of the cursor mid-frame
             // ... so that there's no gaps left between paint intersections, a nice touch for UX!
-            if dist <= 1 {
-                // Place a single particle
-                let ptr = &mut world[mouse_x as usize][mouse_y as usize];
-                // If not occupied: assign Brick as the Variant and activate
-                if !ptr.active {
-                    ptr.variant = ParticleVariant::Brick;
-                    ptr.active = true;
-                }
-            } else if is_drawing_secondary {
+            if is_drawing_secondary {
                 // TODO: We can do a much better algorithm than this (perhaps linear interpolation?)
                 // TODO: Diagonal movements currently do not seem to work well with this (missing path particles), investigate!
                 // While the X or Y coords of the last particle don't match the current mouse coords, pathfind our way to it!
@@ -119,9 +110,9 @@ async fn main() {
                 // Reset X/Y tracking when we're not smoothing
                 last_x = mouse_x;
                 last_y = mouse_y;
+                // Switch the secondary draw on after one frame (to avoid the pathing system activating between 'paints')
+                is_drawing_secondary = true;
             }
-            // Switch the secondary draw on after one frame (to avoid the pathing system activating between 'paints')
-            is_drawing_secondary = true;
         }
 
         // Control release: Disable the secondary paint smoothing
