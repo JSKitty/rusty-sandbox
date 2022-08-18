@@ -139,7 +139,7 @@ async fn main() {
 
         // Keep track of particle IDs that were modified within this frame.
         // ... this is to avoid 'infinite simulation' since gravity pulls them down the Y-axis progressively.
-        let mut ids: Vec<i32> = Vec::new();
+        let mut updated_ids: Vec<i32> = Vec::new();
         
         // Update the state of all particles + render
         for px in 0..world.len() {
@@ -154,10 +154,9 @@ async fn main() {
                     continue;
                 }
                 // Don't re-simulate particles that have already been simulated this frame
-                if ids.contains(&world[px][py].id) {
+                if updated_ids.contains(&world[px][py].id) {
                     continue;
                 }
-                ids.push(world[px][py].id);
 
                 // Only process Sand (and other future interactive particles) here
                 if world[px][py].variant == ParticleVariant::Sand {
@@ -174,6 +173,7 @@ async fn main() {
                         world[px][py + 1].active = true;
                         let id = world[px][py + 1].id;
                         world[px][py + 1].id = world[px][py].id;
+                        updated_ids.push(world[px][py + 1].id);
                         world[px][py].id = id;
                         world[px][py].active = false;
                     } else {
@@ -191,6 +191,7 @@ async fn main() {
                                     world[x_new][py].active = true;
                                     let a = world[x_new][py].id;
                                     world[x_new][py].id = world[px][py].id;
+                                    updated_ids.push(world[x_new][py].id);
                                     world[px][py].id = a;
                                     world[px][py].active = false;
                                 }
