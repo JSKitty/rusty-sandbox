@@ -14,6 +14,19 @@ enum ParticleVariant {
     Brick
 }
 
+impl ParticleVariant {
+    // Return a percentage (1-100) chance of this particle moving, based on it's variant
+    fn get_movement_chance(&self) -> u8 {
+        match self {
+            ParticleVariant::Sand  => 50,
+            ParticleVariant::Dirt  => 5,
+            ParticleVariant::Water => 100,
+            // Other particles (ie: brick) will default to being still
+            _ => 0
+        }
+    }
+}
+
 impl std::fmt::Display for ParticleVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -35,6 +48,24 @@ struct Particle {
 impl Particle {
     fn new(id: i32, variant: ParticleVariant, active: bool) -> Particle {
         Particle { id, variant, active }
+    }
+
+    // Return a potential (non-guarenteed) movement delta for this particle, based on it's properties
+    fn try_generate_movement(&self) -> usize {
+        if rand::gen_range(0, 100) < self.variant.get_movement_chance() {
+            rand::gen_range(-2, 2) as usize
+        } else { 0 }
+    }
+
+    // Return a colour for this particle, based on it's properties
+    // BUG (?): using a custom `Color::new(r, g, b, a);` doesn't seem to work here... so try to stick to defaults?
+    fn get_colour(&self) -> Color {
+        match self.variant {
+            ParticleVariant::Sand  => BEIGE,
+            ParticleVariant::Dirt  => DARKBROWN,
+            ParticleVariant::Water => BLUE,
+            ParticleVariant::Brick => RED
+        }
     }
 }
 
@@ -238,25 +269,8 @@ async fn main() {
                         // Check particle has hit a floor and is within the screen width bounds
                         if !is_below_free && px > 0 && px32 < screen_width() {
 
-                            // Compute the new X-axis based on Variant properties
-                            let x_new = match world[px][py].variant {
-                                // Water: has a 100% movement speed (e.g: transfers sideways constantly)
-                                ParticleVariant::Water => { px + rand::gen_range(-2, 2) as usize },
-                                // Sand: 50% chance per-frame of moving left or right
-                                ParticleVariant::Sand  => {
-                                    if rand::gen_range(0, 100) < 50 {
-                                        px + rand::gen_range(-2, 2) as usize
-                                    } else { px }
-                                 },
-                                 // Dirt: 5% chance per-frame of moving left or right
-                                 ParticleVariant::Dirt  => {
-                                     if rand::gen_range(0, 100) < 5 {
-                                         px + rand::gen_range(-2, 2) as usize
-                                     } else { px }
-                                  },
-                                 // Default to origin if any other variant
-                                 _ => px
-                            };
+                            // Compute the new X-axis based on Particle properties
+                            let x_new = px + world[px][py].try_generate_movement();
 
                             // Ensure the new X-axis is valid
                             if x_new > 0 && x_new < screen_width() as usize {
@@ -297,18 +311,8 @@ async fn main() {
                     }
                 }
 
-                // Compute the colour from the Variant
-                let particle = &world[px][py];
-                // BUG (?): using a custom `Color::new(r, g, b, a);` doesn't seem to work here... so try to stick to defaults?
-                let colour = match particle.variant {
-                    ParticleVariant::Sand  => BEIGE,
-                    ParticleVariant::Dirt  => DARKBROWN,
-                    ParticleVariant::Water => BLUE,
-                    ParticleVariant::Brick => RED
-                };
-
                 // Render updated particle state
-                draw_rectangle(px as f32, py as f32, 1.0, 1.0, colour);
+                draw_rectangle(px as f32, py as f32, 1.0, 1.0, world[px][py].get_colour());
             }
         }
 
