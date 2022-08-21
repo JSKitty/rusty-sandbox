@@ -9,6 +9,7 @@ static SELECTED_FONT_SIZE: f32 = 150.0;
 #[derive(Clone, PartialEq, Eq)]
 enum ParticleVariant {
     Sand,
+    Dirt,
     Water,
     Brick
 }
@@ -17,6 +18,7 @@ impl std::fmt::Display for ParticleVariant {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ParticleVariant::Sand  => write!(f, "Sand"),
+            ParticleVariant::Dirt  => write!(f, "Dirt"),
             ParticleVariant::Water => write!(f, "Water"),
             ParticleVariant::Brick => write!(f, "Brick")
         }
@@ -87,7 +89,12 @@ async fn main() {
             selected_variant = ParticleVariant::Sand;
         }
 
-        if macroquad::ui::root_ui().button(vec2(75.0, 25.0), "Water") {
+        if macroquad::ui::root_ui().button(vec2(75.0, 25.0), "Dirt") {
+            is_clicking_ui = true;
+            selected_variant = ParticleVariant::Dirt;
+        }
+
+        if macroquad::ui::root_ui().button(vec2(125.0, 25.0), "Water") {
             is_clicking_ui = true;
             selected_variant = ParticleVariant::Water;
         }
@@ -180,6 +187,7 @@ async fn main() {
         
         // Update the state of all particles + render
         let mut sand_count = 0;
+        let mut dirt_count = 0;
         let mut water_count = 0;
         let mut brick_count = 0;
         for px in 0..world.len() {
@@ -202,13 +210,14 @@ async fn main() {
                 if DEBUG {
                     match world[px][py].variant {
                         ParticleVariant::Sand  => { sand_count  += 1 },
+                        ParticleVariant::Dirt  => { dirt_count  += 1 },
                         ParticleVariant::Water => { water_count += 1 },
                         ParticleVariant::Brick => { brick_count += 1 },
                     }
                 }
 
                 // Only process Sand (and other future interactive particles) here
-                if world[px][py].variant == ParticleVariant::Sand || world[px][py].variant == ParticleVariant::Water {
+                if world[px][py].variant == ParticleVariant::Sand || world[px][py].variant == ParticleVariant::Dirt || world[px][py].variant == ParticleVariant::Water {
                     // Clone for use in pixel tracking
                     let particle_under = &mut world[px].get(py + 1).cloned();
                     let is_below_free = particle_under.as_ref().is_some() && !particle_under.as_ref().unwrap().active;
@@ -239,6 +248,12 @@ async fn main() {
                                         px + rand::gen_range(-2, 2) as usize
                                     } else { px }
                                  },
+                                 // Dirt: 5% chance per-frame of moving left or right
+                                 ParticleVariant::Dirt  => {
+                                     if rand::gen_range(0, 100) < 5 {
+                                         px + rand::gen_range(-2, 2) as usize
+                                     } else { px }
+                                  },
                                  // Default to origin if any other variant
                                  _ => px
                             };
@@ -284,8 +299,10 @@ async fn main() {
 
                 // Compute the colour from the Variant
                 let particle = &world[px][py];
+                // BUG (?): using a custom `Color::new(r, g, b, a);` doesn't seem to work here... so try to stick to defaults?
                 let colour = match particle.variant {
-                    ParticleVariant::Sand  => Color::new(194.0, 178.0, 128.0, 1.0),
+                    ParticleVariant::Sand  => BEIGE,
+                    ParticleVariant::Dirt  => DARKBROWN,
                     ParticleVariant::Water => BLUE,
                     ParticleVariant::Brick => RED
                 };
@@ -302,7 +319,7 @@ async fn main() {
 
         // Debugging UI
         if DEBUG {
-            draw_text(format!("Sand: {}, Water: {}, Brick: {}", sand_count, water_count, brick_count).as_str(), 25.0, screen_height() / 2.0, 20.0, BLUE);
+            draw_text(format!("Sand: {}, Dirt: {}, Water: {}, Brick: {}", sand_count, dirt_count, water_count, brick_count).as_str(), 25.0, screen_height() / 2.0, 20.0, BLUE);
         }
 
         next_frame().await
