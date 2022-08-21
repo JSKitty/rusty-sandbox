@@ -1,9 +1,24 @@
-# Rusty Sandbox
-A lightweight sandbox sim written in Rust.
+<h1 align="center">
+  Rusty Sandbox
+</h1>
 
-![rusty-sandbox-demo](https://user-images.githubusercontent.com/42538664/185786815-206a50f7-5223-4ebd-aeb1-46479519c5cb.gif)
+<p align="center">
+  A lightweight sandbox sim written in Rust.
+</p>
 
-This is a quick hobby project written to practice three things: Rust, [Macroquad](https://macroquad.rs/) and Maths!
+<p align="center">
+  <a href="https://stakecubecoin.net/wasm-sandbox/">Play via Browser</a> (WASM) | <a href="https://github.com/JSKitty/rusty-sandbox#developer-installation">Compile by yourself</a>
+</p>
+
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/42538664/185786815-206a50f7-5223-4ebd-aeb1-46479519c5cb.gif" />
+</p>
+
+<p align="center">
+  This is a quick hobby project written to practice three things: Rust, <a href="https://macroquad.rs/">Macroquad</a> and Maths!
+</p>
+
+---
 
 ## Developer Installation
 
