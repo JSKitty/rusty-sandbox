@@ -1,6 +1,8 @@
 # Rusty Sandbox
 A lightweight sandbox sim written in Rust.
 
+![rusty-sandbox-demo](https://user-images.githubusercontent.com/42538664/185786815-206a50f7-5223-4ebd-aeb1-46479519c5cb.gif)
+
 This is a quick hobby project written to practice three things: Rust, [Macroquad](https://macroquad.rs/) and Maths!
 
 ## Developer Installation
@@ -10,6 +12,7 @@ Pre-requisites: The Rust toolchain (stable preferred) and well... git!
 git clone https://github.com/JSKitty/rusty-sandbox.git
 cargo run --release
 cargo build --release
+
 ```
 
 ## Aim / Goals
