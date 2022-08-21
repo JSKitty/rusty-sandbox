@@ -1,9 +1,26 @@
 use macroquad::prelude::*;
 
+// NOTE: enable DEBUG and recompile for runtime stats / tracking / debugging helpers
+static DEBUG: bool = false;
+
+// Font size for the '{ParticleVariant} Selected' screen
+static SELECTED_FONT_SIZE: f32 = 150.0;
+
 #[derive(Clone, PartialEq, Eq)]
 enum ParticleVariant {
     Sand,
+    Water,
     Brick
+}
+
+impl std::fmt::Display for ParticleVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ParticleVariant::Sand  => write!(f, "Sand"),
+            ParticleVariant::Water => write!(f, "Water"),
+            ParticleVariant::Brick => write!(f, "Brick")
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -32,6 +49,10 @@ async fn main() {
     // Trackers for mouse movements (used in 'smoothing' fast paints)
     let mut last_x: i16 = 0;
     let mut last_y: i16 = 0;
+    // Flag lock to tell the engine when the user is hitting a GUI button
+    let mut is_clicking_ui = false;
+    // The current primary particle variant selected by the user
+    let mut selected_variant = ParticleVariant::Sand;
 
     // The logic + renderer loop
     loop {
@@ -60,58 +81,81 @@ async fn main() {
             }
         }
 
-        // Control: left click for Sand
-        if is_mouse_button_down(MouseButton::Left) {
-            let (mouse_x, mouse_y) = mouse_position();
-            let mouse_x = mouse_x as i16;
-            let mouse_y = mouse_y as i16;
+        // UI: Top-right
+        if macroquad::ui::root_ui().button(vec2(25.0, 25.0), "Sand") {
+            is_clicking_ui = true;
+            selected_variant = ParticleVariant::Sand;
+        }
 
-            // Fill an X/Y radius from the cursor with Sand particles
-            for y in mouse_y..(mouse_y + paint_radius) {
-                for x in mouse_x - paint_radius..(mouse_x + paint_radius) {
-                    // Note: macroquad doesn't like the mouse leaving the window when dragging.
-                    // ... so make sure no crazy out-of-bounds happen!
-                    if x > 0 && x < screen_width() as i16 && y > 0 && y < screen_height() as i16 {
-                        let ptr = &mut world[x as usize][y as usize];
-                        // If not occupied: assign Sand as the Variant and activate
-                        if !ptr.active {
-                            ptr.variant = ParticleVariant::Sand;
-                            ptr.active = true;
+        if macroquad::ui::root_ui().button(vec2(75.0, 25.0), "Water") {
+            is_clicking_ui = true;
+            selected_variant = ParticleVariant::Water;
+        }
+
+        // UI: Top-Centre
+        let selected_display_str = format!("{}", selected_variant);
+        let selected_display_size = measure_text(selected_display_str.as_str(), None, SELECTED_FONT_SIZE as u16, 1.0);
+        draw_text(selected_display_str.as_str(), (screen_width() / 2.0) - (selected_display_size.width / 2.0), 175.0, SELECTED_FONT_SIZE, Color::new(0.0, 0.47, 0.95, 0.275));
+
+        // UI: Bottom-left
+        draw_text(format!("Paint Size: {}px", paint_radius).as_str(), 25.0, screen_height() - 50.0, 50.0, BLUE);
+        draw_text("Use the Numpad (+ and -) to increase/decrease size!", 25.0, screen_height() - 25.0, 20.0, BLUE);
+
+
+        // Disable the mouse when
+        if !is_clicking_ui {
+            // Control: left click for Sand
+            if is_mouse_button_down(MouseButton::Left) {
+                let (mouse_x, mouse_y) = mouse_position();
+                let mouse_x = mouse_x as i16;
+                let mouse_y = mouse_y as i16;
+
+                // Fill an X/Y radius from the cursor with Sand particles
+                for y in mouse_y..(mouse_y + paint_radius) {
+                    for x in mouse_x - paint_radius..(mouse_x + paint_radius) {
+                        // Note: macroquad doesn't like the mouse leaving the window when dragging.
+                        // ... so make sure no crazy out-of-bounds happen!
+                        if x > 0 && x < screen_width() as i16 && y > 0 && y < screen_height() as i16 {
+                            let ptr = &mut world[x as usize][y as usize];
+                            // If not occupied: assign Sand as the Variant and activate
+                            if !ptr.active {
+                                ptr.variant = selected_variant.clone();
+                                ptr.active = true;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // Control: right click for Brick
-        if is_mouse_button_down(MouseButton::Right) {
-            let (mouse_x, mouse_y) = mouse_position();
-            let mouse_x = mouse_x as i16;
-            let mouse_y = mouse_y as i16;
-            // If the distance is large (e.g: a fast mouse flick) then we need to 'best-guess' the path of the cursor mid-frame
-            // ... so that there's no gaps left between paint intersections, a nice touch for UX!
-            if is_drawing_secondary {
-                // TODO: We can do a much better algorithm than this (perhaps linear interpolation?)
-                // TODO: Diagonal movements currently do not seem to work well with this (missing path particles), investigate!
-                // While the X or Y coords of the last particle don't match the current mouse coords, pathfind our way to it!
-                while last_x != mouse_x || last_y != mouse_y {
-                    if mouse_x > last_x { last_x += 1; }
-                    if mouse_x < last_x { last_x -= 1; }
-                    if mouse_y > last_y { last_y += 1; }
-                    if mouse_y < last_y { last_y -= 1; }
-                    // Place a particle along the path
-                    let ptr = &mut world[last_x as usize][last_y as usize];
-                    if !ptr.active {
-                        ptr.variant = ParticleVariant::Brick;
-                        ptr.active = true;
+            // Control: right click for Brick
+            if is_mouse_button_down(MouseButton::Right) {
+                let (mouse_x, mouse_y) = mouse_position();
+                let mouse_x = mouse_x as i16;
+                let mouse_y = mouse_y as i16;
+                // If the distance is large (e.g: a fast mouse flick) then we need to 'best-guess' the path of the cursor mid-frame
+                // ... so that there's no gaps left between paint intersections, a nice touch for UX!
+                if is_drawing_secondary {
+                    // TODO: We can do a much better algorithm than this (perhaps linear interpolation?)
+                    // While the X or Y coords of the last particle don't match the current mouse coords, pathfind our way to it!
+                    while last_x != mouse_x || last_y != mouse_y {
+                        if mouse_x > last_x { last_x += 1; }
+                        if mouse_x < last_x { last_x -= 1; }
+                        if mouse_y > last_y { last_y += 1; }
+                        if mouse_y < last_y { last_y -= 1; }
+                        // Place a particle along the path
+                        let ptr = &mut world[last_x as usize][last_y as usize];
+                        if !ptr.active {
+                            ptr.variant = ParticleVariant::Brick;
+                            ptr.active = true;
+                        }
                     }
+                } else {
+                    // Reset X/Y tracking when we're not smoothing
+                    last_x = mouse_x;
+                    last_y = mouse_y;
+                    // Switch the secondary draw on after one frame (to avoid the pathing system activating between 'paints')
+                    is_drawing_secondary = true;
                 }
-            } else {
-                // Reset X/Y tracking when we're not smoothing
-                last_x = mouse_x;
-                last_y = mouse_y;
-                // Switch the secondary draw on after one frame (to avoid the pathing system activating between 'paints')
-                is_drawing_secondary = true;
             }
         }
 
@@ -130,18 +174,14 @@ async fn main() {
             paint_radius -= 1;
         }
 
-        // UI: Top-right
-        draw_text("Left click for Sand, Right click for Brick!", 25.0, 25.0, 20.0, BLUE);
-
-        // UI: Bottom-left
-        draw_text(format!("Paint Size: {}px", paint_radius).as_str(), 25.0, screen_height() - 50.0, 50.0, BLUE);
-        draw_text("Use the Numpad (+ and -) to increase/decrease size!", 25.0, screen_height() - 25.0, 20.0, BLUE);
-
         // Keep track of particle IDs that were modified within this frame.
         // ... this is to avoid 'infinite simulation' since gravity pulls them down the Y-axis progressively.
         let mut updated_ids: Vec<i32> = Vec::new();
         
         // Update the state of all particles + render
+        let mut sand_count = 0;
+        let mut water_count = 0;
+        let mut brick_count = 0;
         for px in 0..world.len() {
             // A couple pre-use-casts to make macroquad float calculations easier and faster
             let px32 = px as f32;
@@ -158,8 +198,17 @@ async fn main() {
                     continue;
                 }
 
+                // Debugging: track pixel counts
+                if DEBUG {
+                    match world[px][py].variant {
+                        ParticleVariant::Sand  => { sand_count  += 1 },
+                        ParticleVariant::Water => { water_count += 1 },
+                        ParticleVariant::Brick => { brick_count += 1 },
+                    }
+                }
+
                 // Only process Sand (and other future interactive particles) here
-                if world[px][py].variant == ParticleVariant::Sand {
+                if world[px][py].variant == ParticleVariant::Sand || world[px][py].variant == ParticleVariant::Water {
                     // Clone for use in pixel tracking
                     let particle_under = &mut world[px].get(py + 1).cloned();
                     let is_below_free = particle_under.as_ref().is_some() && !particle_under.as_ref().unwrap().active;
@@ -171,29 +220,62 @@ async fn main() {
                         // Swap the particles (TODO: optimise!)
                         world[px][py + 1].variant = world[px][py].variant.clone();
                         world[px][py + 1].active = true;
-                        let id = world[px][py + 1].id;
+                        let new_id = world[px][py + 1].id;
                         world[px][py + 1].id = world[px][py].id;
                         updated_ids.push(world[px][py + 1].id);
-                        world[px][py].id = id;
+                        world[px][py].id = new_id;
                         world[px][py].active = false;
                     } else {
                         // Check particle has hit a floor and is within the screen width bounds
-                        if !is_below_free && px > 1 && px32 <= screen_width() - 1.0 {
+                        if !is_below_free && px > 0 && px32 < screen_width() {
 
-                            // 50% chance per-frame of a sand particle moving left-right (if space allows!)
-                            if rand::gen_range(0, 100) < 50 {
-                                let x_new = px + rand::gen_range(-2, 2) as usize;
+                            // Compute the new X-axis based on Variant properties
+                            let x_new = match world[px][py].variant {
+                                // Water: has a 100% movement speed (e.g: transfers sideways constantly)
+                                ParticleVariant::Water => { px + rand::gen_range(-2, 2) as usize },
+                                // Sand: 50% chance per-frame of moving left or right
+                                ParticleVariant::Sand  => {
+                                    if rand::gen_range(0, 100) < 50 {
+                                        px + rand::gen_range(-2, 2) as usize
+                                    } else { px }
+                                 },
+                                 // Default to origin if any other variant
+                                 _ => px
+                            };
 
-                                // Ensure a neighbouring particle doesn't exist (and that it's within screen width)
-                                if x_new > 1 && x_new < screen_width() as usize && !world[x_new][py].active {
+                            // Ensure the new X-axis is valid
+                            if x_new > 0 && x_new < screen_width() as usize {
+                                // Generate some Y-axis entropy
+                                let mut y_new = py;
+                                let y_rand = py + rand::gen_range(0, 2) as usize;
+
+                                // Ensure the new Y-axis is valid
+                                if y_rand > 0 && y_rand < screen_height() as usize { y_new = y_rand; }
+
+                                // Figure out some context data
+                                let is_water = world[px][py].variant == ParticleVariant::Water;
+                                let is_swapping_with_water = world[x_new][y_new].active && world[x_new][y_new].variant == ParticleVariant::Water && !is_water;
+
+                                // 'Sinking' only applies when it's Solid <---> Liquid or physically dense elements
+                                if !is_swapping_with_water { y_new = py; }
+
+                                // Ensure a neighbouring solid particle doesn't exist
+                                if  !world[x_new][y_new].active || is_swapping_with_water {
                                     // Swap the particles (TODO: optimise!)
-                                    world[x_new][py].variant = world[px][py].variant.clone();
-                                    world[x_new][py].active = true;
-                                    let a = world[x_new][py].id;
-                                    world[x_new][py].id = world[px][py].id;
-                                    updated_ids.push(world[x_new][py].id);
-                                    world[px][py].id = a;
-                                    world[px][py].active = false;
+                                    world[x_new][y_new].variant = world[px][py].variant.clone();
+                                    world[x_new][y_new].active = true;
+                                    let new_id = world[x_new][y_new].id;
+
+                                    // Swap IDs and prevent further updates via vec tracker
+                                    world[x_new][y_new].id = world[px][py].id;
+                                    updated_ids.push(world[x_new][y_new].id);
+                                    world[px][py].id = new_id;
+
+                                    // If a solid particle swaps with water: then the prior solid position must be filled with water
+                                    world[px][py].active = is_swapping_with_water;
+                                    if is_swapping_with_water {
+                                        world[px][py].variant = ParticleVariant::Water;
+                                    }
                                 }
                             }
                         }
@@ -204,12 +286,23 @@ async fn main() {
                 let particle = &world[px][py];
                 let colour = match particle.variant {
                     ParticleVariant::Sand  => Color::new(194.0, 178.0, 128.0, 1.0),
+                    ParticleVariant::Water => BLUE,
                     ParticleVariant::Brick => RED
                 };
 
                 // Render updated particle state
                 draw_rectangle(px as f32, py as f32, 1.0, 1.0, colour);
             }
+        }
+
+        // Disable the UI lock if buttons were released
+        if is_mouse_button_released(MouseButton::Left) {
+            is_clicking_ui = false;
+        }
+
+        // Debugging UI
+        if DEBUG {
+            draw_text(format!("Sand: {}, Water: {}, Brick: {}", sand_count, water_count, brick_count).as_str(), 25.0, screen_height() / 2.0, 20.0, BLUE);
         }
 
         next_frame().await
