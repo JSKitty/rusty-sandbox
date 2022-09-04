@@ -40,13 +40,13 @@ impl std::fmt::Display for ParticleVariant {
 
 #[derive(Clone)]
 struct Particle {
-    id: i32,
+    id: u32,
     variant: ParticleVariant,
     active: bool
 }
 
 impl Particle {
-    fn new(id: i32, variant: ParticleVariant, active: bool) -> Particle {
+    fn new(id: u32, variant: ParticleVariant, active: bool) -> Particle {
         Particle { id, variant, active }
     }
 
@@ -73,17 +73,30 @@ impl Particle {
 async fn main() {
     // The 2D world-space particle grid
     let mut world: Vec<Vec<Particle>> = Vec::new();
+
     // The last particle ID generated
-    let mut last_id: i32 = 0;
+    let mut last_id: u32 = 0;
+
     // The size (in pixels) of our paint radius
-    let mut paint_radius: i16 = 1;
+    let mut paint_radius: u16 = 1;
+
+    // The zoom multiplyer
+    let mut camera_zoom: u8 = 1;
+
+    // The camera offsets (used to 'control' the camera's location on the grid via zoomed X/Y offset)
+    let mut camera_offset_x: i16 = 0;
+    let mut camera_offset_y: i16 = 0;
+
     // Flag to ensure paint 'smoothing' doesn't activate between clicks (individual paints)
     let mut is_drawing_secondary = false;
+
     // Trackers for mouse movements (used in 'smoothing' fast paints)
-    let mut last_x: i16 = 0;
-    let mut last_y: i16 = 0;
+    let mut last_x: u16 = 0;
+    let mut last_y: u16 = 0;
+
     // Flag lock to tell the engine when the user is hitting a GUI button
     let mut is_clicking_ui = false;
+
     // The current primary particle variant selected by the user
     let mut selected_variant = ParticleVariant::Sand;
 
@@ -140,20 +153,20 @@ async fn main() {
         draw_text("Use the Numpad (+ and -) to increase/decrease size!", 25.0, screen_height() - 25.0, 20.0, BLUE);
 
 
-        // Disable the mouse when
+        // Disable the mouse when clicking UI elements
         if !is_clicking_ui {
             // Control: left click for Sand
             if is_mouse_button_down(MouseButton::Left) {
                 let (mouse_x, mouse_y) = mouse_position();
-                let mouse_x = mouse_x as i16;
-                let mouse_y = mouse_y as i16;
+                let mouse_x = (mouse_x as u16 / camera_zoom as u16) - camera_offset_x as u16;
+                let mouse_y = (mouse_y as u16 / camera_zoom as u16) - camera_offset_y as u16;
 
                 // Fill an X/Y radius from the cursor with Sand particles
                 for y in mouse_y..(mouse_y + paint_radius) {
                     for x in mouse_x - paint_radius..(mouse_x + paint_radius) {
                         // Note: macroquad doesn't like the mouse leaving the window when dragging.
                         // ... so make sure no crazy out-of-bounds happen!
-                        if x > 0 && x < screen_width() as i16 && y > 0 && y < screen_height() as i16 {
+                        if x > 0 && x < screen_width() as u16 && y > 0 && y < screen_height() as u16 {
                             let ptr = &mut world[x as usize][y as usize];
                             // If not occupied: assign Sand as the Variant and activate
                             if !ptr.active {
@@ -168,8 +181,8 @@ async fn main() {
             // Control: right click for Brick
             if is_mouse_button_down(MouseButton::Right) {
                 let (mouse_x, mouse_y) = mouse_position();
-                let mouse_x = mouse_x as i16;
-                let mouse_y = mouse_y as i16;
+                let mouse_x = (mouse_x as u16 / camera_zoom as u16) - camera_offset_x as u16;
+                let mouse_y = (mouse_y as u16 / camera_zoom as u16) - camera_offset_y as u16;
                 // If the distance is large (e.g: a fast mouse flick) then we need to 'best-guess' the path of the cursor mid-frame
                 // ... so that there's no gaps left between paint intersections, a nice touch for UX!
                 if is_drawing_secondary {
@@ -180,11 +193,15 @@ async fn main() {
                         if mouse_x < last_x { last_x -= 1; }
                         if mouse_y > last_y { last_y += 1; }
                         if mouse_y < last_y { last_y -= 1; }
-                        // Place a particle along the path
-                        let ptr = &mut world[last_x as usize][last_y as usize];
-                        if !ptr.active {
-                            ptr.variant = ParticleVariant::Brick;
-                            ptr.active = true;
+                        // Note: macroquad doesn't like the mouse leaving the window when dragging.
+                        // ... so make sure no crazy out-of-bounds happen!
+                        if last_x > 0 && last_x < screen_width() as u16 && last_y > 0 && last_y < screen_height() as u16 {
+                            // Place a particle along the path
+                            let ptr = &mut world[last_x as usize][last_y as usize];
+                            if !ptr.active {
+                                ptr.variant = ParticleVariant::Brick;
+                                ptr.active = true;
+                            }
                         }
                     }
                 } else {
@@ -212,9 +229,31 @@ async fn main() {
             paint_radius -= 1;
         }
 
+        // Control: rendering scale (zoom)
+        let (_, scroll_y) = mouse_wheel();
+        if scroll_y != 0.0 {
+            if scroll_y > 0.0 {
+                // Maximum zoom of 5x
+                if camera_zoom < 5 {
+                    camera_zoom += 1;
+                }
+            } else {
+                // Minimum zoom of 1x (default)
+                if camera_zoom > 1 {
+                    camera_zoom -= 1;
+                }
+            }
+        }
+
+        // Control: WASD and Arrow Keys for camera 'offset' movement
+        if is_key_down(KeyCode::W) || is_key_down(KeyCode::Up)    { camera_offset_y += 1 }
+        if is_key_down(KeyCode::A) || is_key_down(KeyCode::Left)  { camera_offset_x += 1 }
+        if is_key_down(KeyCode::S) || is_key_down(KeyCode::Down)  { camera_offset_y -= 1 }
+        if is_key_down(KeyCode::D) || is_key_down(KeyCode::Right) { camera_offset_x -= 1 }
+
         // Keep track of particle IDs that were modified within this frame.
         // ... this is to avoid 'infinite simulation' since gravity pulls them down the Y-axis progressively.
-        let mut updated_ids: Vec<i32> = Vec::new();
+        let mut updated_ids: Vec<u32> = Vec::new();
         
         // Update the state of all particles + render
         let mut sand_count = 0;
@@ -312,7 +351,8 @@ async fn main() {
                 }
 
                 // Render updated particle state
-                draw_rectangle(px as f32, py as f32, 1.0, 1.0, world[px][py].get_colour());
+                let zoomf = camera_zoom as f32;
+                draw_rectangle((px32 * zoomf) + (camera_offset_x as f32 * zoomf), (py32 * zoomf) + (camera_offset_y as f32 * zoomf), zoomf, zoomf, world[px][py].get_colour());
             }
         }
 
