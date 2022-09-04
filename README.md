@@ -20,17 +20,32 @@
 
 ---
 
-## Developer Installation
+# Dev Builds
 
-Pre-requisites: The Rust toolchain (stable preferred) and well... git!
-```
-git clone https://github.com/JSKitty/rusty-sandbox.git
+Prerequisites: The Rust Toolchain (stable preferred).
+
+<details><summary><i><b>Local Compile</b></i> (For your architecture)</summary>
+
+```bash
+git clone https://github.com/JSKitty/rusty-sandbox.git && cd rusty-sandbox
 cargo run --release
 cargo build --release
-
 ```
+</details>
 
-## Aim / Goals
+
+<details><summary><i><b>WASM Compile</b></i> (For <a href="https://github.com/not-fl3/miniquad/#wasm">web-based</a> usage like <a href="https://stakecubecoin.net/wasm-sandbox/">this!</a>)</summary>
+  
+```bash
+git clone https://github.com/JSKitty/rusty-sandbox.git && cd rusty-sandbox
+rustup target add wasm32-unknown-unknown
+cargo build --release --target wasm32-unknown-unknown
+```
+</details>
+
+---
+
+# Aim / Goals
 
 The primary aims of the project being:
 - **Minimalistic codebase:** easy to follow, easy to learn from, a 'living' tutorial.
